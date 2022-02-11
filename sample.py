@@ -1,6 +1,5 @@
 import tensorflow as tf
 
-from tensorflow.keras import backend as K
 
 def get_triplet_random_batch(batch_size, user_to_traces_map: dict):
     """ Generates a random triplet training batch. """
@@ -42,7 +41,7 @@ def get_triplet_batch_hard(args: dict, user_to_traces_map: dict, model: tf.keras
 
     output = model.predict(random_batch)
     anchor, positive, negative = output[:, :args.latent_size], output[: ,args.latent_size:2*args.latent_size], output[:, 2*args.latent_size:]
-    dist = K.sum(K.square(anchor-positive), axis=-1) - K.sum(K.square(anchor-negative), axis=-1)
+    dist = tf.reduce_mean(tf.square(anchor - positive), axis=1) - tf.reduce_mean(tf.square(anchor - negative), axis=1)
     selection_hard = tf.argsort(dist, direction="DESCENDING")[:hard_batch_size]
 
     # Select other random samples
