@@ -21,7 +21,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=128, help="Specifies the batch size to train the model.")
     parser.add_argument("--seed", type=int, default=0, help="Specifies the seed.")
     parser.add_argument("--path", type=str, default="/home/john/data/browsing/browsing.csv", help="Specifies the absolute path to the dataset.")
-    parser.add_argument("--gpu", type=str, default="/device:GPU:1", help="Specifies the gpu to train on. Default: /device:GPU:1")
+    parser.add_argument("--gpu", type=str, default="/device:GPU:3", help="Specifies the gpu to train on. Default: /device:GPU:1")
     parser.add_argument("--dropout", type=float, default=0.4, help="Specifies the dropout ratio.")
     parser.add_argument("--sampling_strategy", type=str, default="random", choices=["random", "hard"], help="Specifies the sampling strategy.")
     parser.add_argument("--approach", type=str, default="cl", choices=["tl", "cl"], help="Specifies the approach: triplet Loss or contrastive Loss.")

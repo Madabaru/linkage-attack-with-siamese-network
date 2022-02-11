@@ -58,7 +58,7 @@ def load_data(args: dict) -> dict:
 
         del data    
         logging.info("Number of clients before: %i", len(user_to_traces_map.keys())) 
-        filtered_user_to_traces_map = {k: v for k, v in user_to_traces_map.items() if len(v) >= args.min_num_traces_per_client} 
+        filtered_user_to_traces_map = {k: v for k, v in user_to_traces_map.items() if len(v) >= args.min_num_traces_per_user} 
         logging.info("Number of clients after: %i", len(user_to_traces_map.keys())) 
         num_samples = sum([len(v) for k, v in filtered_user_to_traces_map.items()])
         logging.info("Total number of traces: %i", num_samples) 
@@ -156,7 +156,7 @@ def load_data(args: dict) -> dict:
 
         del data    
         logging.info("Number of clients before: %i", len(user_to_traces_map.keys())) # Rust 7933
-        filtered_user_to_traces_map = {k: v for k, v in user_to_traces_map.items() if len(v) >= args.min_num_traces_per_client} 
+        filtered_user_to_traces_map = {k: v for k, v in user_to_traces_map.items() if len(v) >= args.min_num_traces_per_user} 
         logging.info("Number of clients after: %i", len(user_to_traces_map.keys())) # Rust: 3861
         num_samples = sum([len(v) for k, v in filtered_user_to_traces_map.items()])
         logging.info("Total number of traces: %i", num_samples) # Rust: 130756 
