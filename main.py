@@ -49,19 +49,20 @@ def main():
     target_user_list = random.sample(users, args.sample_size)   
     target_user_to_target_trace_map = gen_target_user_to_target_trace_map(user_to_traces_map, target_user_list)
 
-    logging.info("Building network...")
-    if args.approach == "tl":
-        model = SiameseTripletLoss(args)
-        triplet_loss = TripletLoss(args)
-        model.compile(optimizer="adam", loss=triplet_loss)
-    else: 
-        model = SiameseContrastiveLoss(args)
-        contrastive_loss = ContrastiveLoss(args)
-        model.compile(optimizer="adam", loss=contrastive_loss)
-
-    steps_per_epoch = train_num_samples // args.batch_size
-
     with tf.device(args.gpu):
+        
+        logging.info("Building network...")
+        if args.approach == "tl":
+            model = SiameseTripletLoss(args)
+            triplet_loss = TripletLoss(args)
+            model.compile(optimizer="adam", loss=triplet_loss)
+        else: 
+            model = SiameseContrastiveLoss(args)
+            contrastive_loss = ContrastiveLoss(args)
+            model.compile(optimizer="adam", loss=contrastive_loss)
+
+        steps_per_epoch = train_num_samples // args.batch_size
+
         logging.info("Beginning to train the network...")
         for epoch in range(args.epochs):
             total_loss = 0
