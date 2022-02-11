@@ -1,7 +1,9 @@
 import tensorflow as tf
+import numpy as np
+import random
 
 
-def get_triplet_random_batch(batch_size, user_to_traces_map: dict):
+def get_random_triplet_batch(batch_size, user_to_traces_map: dict):
     """ Generates a random triplet training batch. """
     batch_anchor = []
     batch_positive = []
@@ -29,14 +31,15 @@ def get_triplet_random_batch(batch_size, user_to_traces_map: dict):
     return [np.asarray(batch_anchor, dtype='float32'), np.asarray(batch_positive, dtype='float32'), np.asarray(batch_negative, dtype='float32')], np.asarray(batch_labels)
 
 
-def get_triplet_batch_hard(args: dict, user_to_traces_map: dict, model: tf.keras.Model):
+def get_hard_triplet_batch(args: dict, user_to_traces_map: dict, model: tf.keras.Model):
     """ Generates a hard triplet training batch. """
+
     batch_size = args.batch_size * 2
 
     hard_batch_size = int(batch_size / 4)
     norm_batch_size = int(batch_size / 4)
     
-    random_batch, random_labels = get_triplet_random_batch(batch_size, user_to_traces_map)
+    random_batch, random_labels = get_random_triplet_batch(batch_size, user_to_traces_map)
     random_anchor_batch, random_positive_batch, random_negative_batch = random_batch
 
     output = model.predict(random_batch)
@@ -49,3 +52,101 @@ def get_triplet_batch_hard(args: dict, user_to_traces_map: dict, model: tf.keras
     selection = np.append(selection_hard, selection_norm)
     
     return [random_anchor_batch[selection], random_positive_batch[selection], random_negative_batch[selection]], random_labels[selection]
+
+
+def get_random_pair_batch(args: dict, user_to_traces_map: dict):
+    """ Generates a random pair training batch. """
+
+    batch_x1 = []
+    batch_x2 = []
+    batch_labels = []
+
+    for i in range(int(args.batch_size / 2)):
+        random_user = random.sample(user_to_traces_map.keys(), 1)[0]
+        traces_list = user_to_traces_map[random_user]
+        sampled_traces = random.sample(traces_list, 2)
+        trace_1 = sampled_traces[0]
+        trace_2 = sampled_traces[1]
+        batch_x1.append(trace_1)
+        batch_x2.append(trace_2)
+        batch_labels.append(1)
+    
+    for i in range(int(args.batch_size / 2)):
+        random_users = random.sample(user_to_traces_map.keys(), 2)
+        traces_list_1 = user_to_traces_map[random_users[0]]
+        traces_list_2 = user_to_traces_map[random_users[1]]
+        trace_1 = random.sample(traces_list_1, 1)[0]
+        trace_2 = random.sample(traces_list_2, 1)[0]
+        batch_x1.append(trace_1)
+        batch_x2.append(trace_2)
+        batch_labels.append(0)
+
+    collection = list(zip(batch_x1, batch_x2, batch_labels))
+    random.shuffle(collection)
+    batch_x1, batch_x2, batch_labels = zip(*collection)
+
+    return [np.asarray(batch_x1, dtype='float32'), np.asarray(batch_x2, dtype='float32')], np.asarray(batch_labels)
+
+
+def get_test_pair_batch(args: dict, user_to_traces_map: dict, target_trace: list, target_user: int, p: int):
+    """ Generates a pair batch for testing. """
+
+    batch_x1 = []
+    batch_x2 = []
+    batch_labels = []
+
+    users = user_to_traces_map.keys()
+
+    for i in range(p, p + args.batch_size):
+        if i >= len(users):
+            break
+        test_user = list(users)[i]
+        traces_list = user_to_traces_map[test_user]
+        split = int(len(traces_list) / 2)
+        test_trace = random.sample(traces_list[:split], 1)[0]
+        if test_user == target_user:
+            label = 1
+        else:
+            label = 0
+        batch_x1.append(target_trace) 
+        batch_x2.append(test_trace)
+        batch_labels.append(label)
+
+    return [np.asarray(batch_x1, dtype='float32'), np.asarray(batch_x2, dtype='float32')], np.asarray(batch_labels)
+
+
+def get_test_triplet_batch(args: dict, user_to_traces_map: dict, target_trace: list, target_user: int, p: int):
+    """ Generates a triplet batch for testing. """
+    
+    batch_anchor = []
+    batch_positive = []
+    batch_negative = []
+    batch_labels = []
+
+    users = user_to_traces_map.keys()
+    
+    for i in range(p, p + args.batch_size):
+        if i >= len(users):
+            break
+        test_user = list(users)[i]
+        traces_list = user_to_traces_map[test_user]
+        split = int(len(traces_list) / 2)
+        if test_user == target_user:
+            test_trace = random.sample(traces_list[:split], 1)[0]
+            negative_user = random.sample(list(users), 1)[0]
+            traces_list = user_to_traces_map[negative_user]
+            split = int(len(traces_list) / 2)
+            negative_trace = random.sample(traces_list[:split], 1)[0]
+            label = 1
+        else:
+            sampled_traces = random.sample(traces_list[:split], 2)
+            test_trace = sampled_traces[0]
+            negative_trace = sampled_traces[1]
+            label = 0
+
+        batch_anchor.append(target_trace) 
+        batch_positive.append(test_trace)
+        batch_negative.append(negative_trace)
+        batch_labels.append(label) 
+
+    return [np.asarray(batch_anchor, dtype='float32'), np.asarray(batch_positive, dtype='float32'), np.asarray(batch_negative, dtype='float32')], np.asarray(batch_labels)
