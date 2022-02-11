@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=20, help="Specifies the number of epochs to train.")
     parser.add_argument("--batch_size", type=int, default=128, help="Specifies the batch size to train the model.")
     parser.add_argument("--seed", type=int, default=0, help="Specifies the seed.")
-    parser.add_argument("--path", type=str, default="", help="Specifies the absolute path to the dataset.")
+    parser.add_argument("--path", type=str, default="/home/john/data/browsing/browsing.csv", help="Specifies the absolute path to the dataset.")
     parser.add_argument("--gpu", type=str, default="/device:GPU:1", help="Specifies the gpu to train on. Default: /device:GPU:1")
     parser.add_argument("--dropout", type=float, default=0.4, help="Specifies the dropout ratio.")
     parser.add_argument("--sampling_strategy", type=str, default="random", choices=["random", "hard"], help="Specifies the sampling strategy.")
@@ -60,75 +60,77 @@ def main():
         model.compile(optimizer="adam", loss=contrastive_loss)
 
     steps_per_epoch = train_num_samples // args.batch_size
-    logging.info("Beginning to train the network...")
-    for epoch in range(args.epochs):
-        total_loss = 0
-        for step in range(steps_per_epoch):
-            if args.approach == "tl":
-                batch_x, batch_labels = get_hard_triplet_batch(args, train_user_to_traces_map, model)
-            else:
-                batch_x, batch_labels = get_random_pair_batch(args, train_user_to_traces_map)
-            
-            loss = model.train_on_batch(batch_x, batch_labels)
-            total_loss += loss
 
-        logging.info("Epoch [%i|%i] -- Avg Loss per Epoch: %.4f", epoch + 1, args.epochs, total_loss / steps_per_epoch)
-
-        if epoch % 2 == 0:
-            logging.info("Validating the network...")  
-            preds = []
-            for i in range(args.sample_size):
-                target_user = target_user_list[i]
-                target_trace = target_user_to_target_trace_map[target_user]
-                for p in range(0, num_users, args.batch_size):
-                    if args.approach == "tl":
-                        batch_x, _ = get_test_triplet_batch(args, user_to_traces_map, target_trace, target_user, p)
-                        batch_preds = model.predict_on_batch(batch_x)
-                        batch_preds_anchor, batch_preds_positive, batch_preds_negative = batch_preds[:,:args.latent_size], batch_preds[:,args.latent_size:2*args.latent_size], batch_preds[:,2*args.latent_size:]
-                        batch_preds_dist = tf.reduce_mean(tf.square(batch_preds_anchor - batch_preds_positive), axis=1)
-                        preds.append(np.squeeze(batch_preds_dist))  
-                    else:
-                        batch_x, _ = get_test_pair_batch(args, user_to_traces_map, target_trace, target_user, p)
-                        batch_preds = model.predict_on_batch(batch_x)
-                        preds.append(np.squeeze(batch_preds))  
-            
-            j = 0 
-            in_top_1_list = 0
-            in_top_10_list = 0
-            in_top_10_percent_list = 0
-            preds = np.concatenate(preds)
-            for i in range(0, preds.shape[0], num_users):
-                preds_attack = preds[i:i+num_users]
+    with tf.device(args.gpu):
+        logging.info("Beginning to train the network...")
+        for epoch in range(args.epochs):
+            total_loss = 0
+            for step in range(steps_per_epoch):
                 if args.approach == "tl":
-                    sorted_idx = np.argsort(preds_attack)
+                    batch_x, batch_labels = get_hard_triplet_batch(args, train_user_to_traces_map, model)
                 else:
-                    sorted_idx = np.flip(np.argsort(preds_attack))
-                sorted_users = [users[i] for i in sorted_idx]
-                target_user = target_user_list[j]
-                if target_user == sorted_users[0]:
-                    in_top_1_list.append(1)
-                else:
-                    in_top_1_list.append(0)
-                if target_user in sorted_users[:10]:
-                    in_top_10_list.append(1)
-                else:
-                    in_top_10_list.append(0)
-                split = int(0.1 * len(users))
-                if target_user in sorted_users[:split]:
-                    in_top_10_percent_list.append(1)
-                else: 
-                    in_top_10_percent_list.append(0)
-                j += 1
+                    batch_x, batch_labels = get_random_pair_batch(args, train_user_to_traces_map)
+                
+                loss = model.train_on_batch(batch_x, batch_labels)
+                total_loss += loss
 
-            logging.info("Top 1: %.4f -- Top 10: %.4f -- Top 10%: %.4f", np.mean(in_top_1_list), np.mean(in_top_10_list), np.mean(in_top_10_percent_list))
-            args.top_1 = np.mean(in_top_1_list)
-            args.top_1_std = np.std(in_top_1_list)
-            args.top_10 = np.mean(in_top_10_list)
-            args.top_10_std = np.std(in_top_10_list)
-            args.top_10_percent = np.mean(in_top_10_percent_list)
-            args.top_10_percent_std = np.std(in_top_10_percent_list)
-            with open("tmp/evaluation", "a+") as convert_file: 
-                convert_file.write(json.dumps(args))
+            logging.info("Epoch [%i|%i] -- Avg Loss per Epoch: %.4f", epoch + 1, args.epochs, total_loss / steps_per_epoch)
+
+            if epoch % 2 == 0:
+                logging.info("Validating the network...")  
+                preds = []
+                for i in range(args.sample_size):
+                    target_user = target_user_list[i]
+                    target_trace = target_user_to_target_trace_map[target_user]
+                    for p in range(0, num_users, args.batch_size):
+                        if args.approach == "tl":
+                            batch_x, _ = get_test_triplet_batch(args, user_to_traces_map, target_trace, target_user, p)
+                            batch_preds = model.predict_on_batch(batch_x)
+                            batch_preds_anchor, batch_preds_positive, batch_preds_negative = batch_preds[:,:args.latent_size], batch_preds[:,args.latent_size:2*args.latent_size], batch_preds[:,2*args.latent_size:]
+                            batch_preds_dist = tf.reduce_mean(tf.square(batch_preds_anchor - batch_preds_positive), axis=1)
+                            preds.append(np.squeeze(batch_preds_dist))  
+                        else:
+                            batch_x, _ = get_test_pair_batch(args, user_to_traces_map, target_trace, target_user, p)
+                            batch_preds = model.predict_on_batch(batch_x)
+                            preds.append(np.squeeze(batch_preds))  
+                
+                j = 0 
+                in_top_1_list = 0
+                in_top_10_list = 0
+                in_top_10_percent_list = 0
+                preds = np.concatenate(preds)
+                for i in range(0, preds.shape[0], num_users):
+                    preds_attack = preds[i:i+num_users]
+                    if args.approach == "tl":
+                        sorted_idx = np.argsort(preds_attack)
+                    else:
+                        sorted_idx = np.flip(np.argsort(preds_attack))
+                    sorted_users = [users[i] for i in sorted_idx]
+                    target_user = target_user_list[j]
+                    if target_user == sorted_users[0]:
+                        in_top_1_list.append(1)
+                    else:
+                        in_top_1_list.append(0)
+                    if target_user in sorted_users[:10]:
+                        in_top_10_list.append(1)
+                    else:
+                        in_top_10_list.append(0)
+                    split = int(0.1 * len(users))
+                    if target_user in sorted_users[:split]:
+                        in_top_10_percent_list.append(1)
+                    else: 
+                        in_top_10_percent_list.append(0)
+                    j += 1
+
+                logging.info("Top 1: %.4f -- Top 10: %.4f -- Top 10%: %.4f", np.mean(in_top_1_list), np.mean(in_top_10_list), np.mean(in_top_10_percent_list))
+                args.top_1 = np.mean(in_top_1_list)
+                args.top_1_std = np.std(in_top_1_list)
+                args.top_10 = np.mean(in_top_10_list)
+                args.top_10_std = np.std(in_top_10_list)
+                args.top_10_percent = np.mean(in_top_10_percent_list)
+                args.top_10_percent_std = np.std(in_top_10_percent_list)
+                with open("tmp/evaluation", "a+") as convert_file: 
+                    convert_file.write(json.dumps(args))
 
 
 if __name__ == "__main__":
