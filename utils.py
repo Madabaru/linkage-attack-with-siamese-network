@@ -1,13 +1,15 @@
 import numpy as np
 import pandas as pd
 import category_encoders as ce
+import random
 
 
 def load_data(args: dict) -> dict:
+    """ Loads the data and transforms it. """
 
     if "browsing" in args.path:
         
-        df = pd.read_csv(path, delimiter=",")
+        df = pd.read_csv(args.path, delimiter=",")
         
         age_encoder = ce.OneHotEncoder(cols="age", return_df=False)
         age_encoded = age_encoder.fit_transform(df["age"])
@@ -36,15 +38,15 @@ def load_data(args: dict) -> dict:
 
             if not int(data[i, 0]) in user_to_traces_map: 
                 user_to_traces_map[int(data[i, 0])] = []
-                if len(trace) >= MIN_TRACE_LEN:
-                    if data[i - 1, 1] - start_time < MAX_TRACE_DURATION:
+                if len(trace) >= args.min_trace_len:
+                    if data[i - 1, 1] - start_time < args.max_trace_duration:
                         user_to_traces_map[int(data[i - 1, 0])].append(trace)
                 trace = []
                 start_time = data[i, 1]
 
-            if len(trace) >= MAX_TRACE_LEN or (prev_time != 0.0 and data[i, 1] - prev_time > MAX_DELAY):
-                if len(trace) >= MIN_TRACE_LEN and data[i - 1, 1] - start_time < MAX_TRACE_DURATION:
-                    trace = pad_trace(trace)
+            if len(trace) >= args.max_trace_len or (prev_time != 0.0 and data[i, 1] - prev_time > args.max_delay):
+                if len(trace) >= args.min_trace_len and data[i - 1, 1] - start_time < args.max_trace_duration:
+                    trace = pad_trace(args, trace)
                     user_to_traces_map[int(data[i, 0])].append(trace)
                 trace = []
                 start_time = data[i, 1]
@@ -54,15 +56,26 @@ def load_data(args: dict) -> dict:
             prev_user = int(data[i, 0])
 
         del data    
-        filtered_user_to_traces_map = {k: v for k, v in user_to_traces_map.items() if len(v) >= MIN_NUM_TRACES_PER_CLIENT}
+        filtered_user_to_traces_map = {k: v for k, v in user_to_traces_map.items() if len(v) >= args.min_num_traces_per_user}
         return filtered_user_to_traces_map
     
     else:
         return {}
 
 
-def pad_trace(trace: list) -> list:
-    if len(trace) < MAX_TRACE_LEN:
-        diff = MAX_TRACE_LEN - len(trace)
-        trace.extend([np.zeros((EMBEDDING_DIM)) for i in range(diff)])
+def pad_trace(args: dict, trace: list) -> list:
+    """ Adds padding a given trace. """
+    if len(trace) < args.max_trace_len:
+        diff = args.max_trace_len - len(trace)
+        trace.extend([np.zeros((args.embedding_dim)) for i in range(diff)])
     return trace
+
+
+def gen_target_user_to_target_trace_map(user_to_traces_map, target_user_list):
+    """ Generates a map with target user as key and target traces as value. """
+    target_user_to_target_trace_map = {}
+    for target_user in target_user_list:
+        traces_list = user_to_traces_map[target_user]
+        split = int(len(traces_list) / 2)
+        target_user_to_target_trace_map[target_user] = random.sample(traces_list[split:], 1)[0]
+    return target_user_to_target_trace_map
