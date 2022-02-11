@@ -50,7 +50,7 @@ def main():
     target_user_to_target_trace_map = gen_target_user_to_target_trace_map(user_to_traces_map, target_user_list)
 
     with tf.device(args.gpu):
-        
+
         logging.info("Building network...")
         if args.approach == "tl":
             model = SiameseTripletLoss(args)
@@ -130,8 +130,8 @@ def main():
                 args.top_10_std = np.std(in_top_10_list)
                 args.top_10_percent = np.mean(in_top_10_percent_list)
                 args.top_10_percent_std = np.std(in_top_10_percent_list)
-                with open("tmp/evaluation", "a+") as convert_file: 
-                    convert_file.write(json.dumps(args))
+                with open("tmp/evaluation", "a+") as file: 
+                    file.write(json.dumps(args))
 
 
 if __name__ == "__main__":
