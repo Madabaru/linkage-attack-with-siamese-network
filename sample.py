@@ -3,12 +3,15 @@ import numpy as np
 import random
 
 
-def get_random_triplet_batch(batch_size, user_to_traces_map: dict):
+def get_random_triplet_batch(args: dict, user_to_traces_map: dict, batch_size=None):
     """ Generates a random triplet training batch. """
     batch_anchor = []
     batch_positive = []
     batch_negative = []
     batch_labels = []
+
+    if batch_size is None:
+        batch_size = args.batch_size
 
     for i in range(batch_size):
         
@@ -36,10 +39,28 @@ def get_hard_triplet_batch(args: dict, user_to_traces_map: dict, model: tf.keras
 
     batch_size = args.batch_size * 2
 
+    hard_batch_size = int(batch_size / 2)
+    
+    random_batch, random_labels = get_random_triplet_batch(batch_size, user_to_traces_map)
+    random_anchor_batch, random_positive_batch, random_negative_batch = random_batch
+
+    output = model.predict(random_batch)
+    anchor, positive, negative = output[:, :args.latent_size], output[: ,args.latent_size:2*args.latent_size], output[:, 2*args.latent_size:]
+    dist = tf.reduce_mean(tf.square(anchor - positive), axis=1) - tf.reduce_mean(tf.square(anchor - negative), axis=1)
+    selection = tf.argsort(dist, direction="DESCENDING")[:hard_batch_size]
+
+    return [random_anchor_batch[selection], random_positive_batch[selection], random_negative_batch[selection]], random_labels[selection]
+
+
+def get_semi_hard_triplet_batch(args: dict, user_to_traces_map: dict, model: tf.keras.Model):
+    """ Generates a semi hard triplet training batch. """
+
+    batch_size = args.batch_size * 2
+
     hard_batch_size = int(batch_size / 4)
     norm_batch_size = int(batch_size / 4)
     
-    random_batch, random_labels = get_random_triplet_batch(batch_size, user_to_traces_map)
+    random_batch, random_labels = get_random_triplet_batch(args, user_to_traces_map, batch_size)
     random_anchor_batch, random_positive_batch, random_negative_batch = random_batch
 
     output = model.predict(random_batch)
