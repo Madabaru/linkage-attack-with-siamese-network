@@ -4,6 +4,7 @@ import category_encoders as ce
 import random
 import logging
 
+from sklearn.preprocessing import MinMaxScaler
 
 def load_data(args: dict) -> dict:
     """ Loads the data and transforms it. """
@@ -59,7 +60,7 @@ def load_data(args: dict) -> dict:
         del data    
         logging.info("Number of clients before: %i", len(user_to_traces_map.keys())) 
         filtered_user_to_traces_map = {k: v for k, v in user_to_traces_map.items() if len(v) >= args.min_num_traces_per_user} 
-        logging.info("Number of clients after: %i", len(user_to_traces_map.keys())) 
+        logging.info("Number of clients after: %i", len(filtered_user_to_traces_map.keys())) 
         num_samples = sum([len(v) for k, v in filtered_user_to_traces_map.items()])
         logging.info("Total number of traces: %i", num_samples) 
         return filtered_user_to_traces_map
@@ -101,7 +102,7 @@ def load_data(args: dict) -> dict:
         speed = df["speed"].values
         heading = df["heading"].values
 
-        fields = []
+        fields = [client_id, timestamp]
         if "state" in args.fields:
             fields.append(state_encoded)
         if "street" in args.fields:
@@ -137,7 +138,7 @@ def load_data(args: dict) -> dict:
 
             if not int(data[i, 0]) in user_to_traces_map: 
                 user_to_traces_map[int(data[i, 0])] = []
-                if len(trace) >= MIN_MOBILITY_TRACE_LEN:
+                if len(trace) >= args.min_trace_len:
                     if data[i - 1, 1] - start_time < args.max_trace_duration:
                         user_to_traces_map[int(data[i - 1, 0])].append(trace)
                 trace = []
@@ -145,7 +146,7 @@ def load_data(args: dict) -> dict:
 
             if len(trace) >= args.max_trace_len or (prev_time != 0.0 and data[i, 1] - prev_time > args.max_delay):
                 if len(trace) >= args.min_trace_len and data[i - 1, 1] - start_time < args.max_trace_duration:
-                    trace = pad_trace(trace)
+                    trace = pad_trace(args, trace)
                     user_to_traces_map[int(data[i, 0])].append(trace)
                 trace = []
                 start_time = data[i, 1]
@@ -157,7 +158,7 @@ def load_data(args: dict) -> dict:
         del data    
         logging.info("Number of clients before: %i", len(user_to_traces_map.keys())) # Rust 7933
         filtered_user_to_traces_map = {k: v for k, v in user_to_traces_map.items() if len(v) >= args.min_num_traces_per_user} 
-        logging.info("Number of clients after: %i", len(user_to_traces_map.keys())) # Rust: 3861
+        logging.info("Number of clients after: %i", len(filtered_user_to_traces_map.keys())) # Rust: 3861
         num_samples = sum([len(v) for k, v in filtered_user_to_traces_map.items()])
         logging.info("Total number of traces: %i", num_samples) # Rust: 130756 
         return filtered_user_to_traces_map
