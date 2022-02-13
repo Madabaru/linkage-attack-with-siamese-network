@@ -37,7 +37,7 @@ class TripletLoss(tf.keras.losses.Loss):
         super(TripletLoss, self).__init__()
         self.args = args
 
-    def triplet_loss(self, y_true, y_pred):
+    def call(self, y_true, y_pred):
         anchor, positive, negative = y_pred[:, :self.args.latent_size], y_pred[:, self.args.latent_size:2*self.args.latent_size], y_pred[:, 2*self.args.latent_size:]
         positive_dist = tf.reduce_mean(tf.square(anchor - positive), axis=1)
         negative_dist = tf.reduce_mean(tf.square(anchor - negative), axis=1)
@@ -76,7 +76,7 @@ class SiameseContrastiveLoss(tf.keras.Model):
     def distance(self, x):
         x1, x2 = x
         sum_square = tf.reduce_sum(tf.square(x1 - x2), axis=1, keepdims=True)
-        return tf.sqrt(tf.maximum(sum_square, K.epsilon()))
+        return tf.sqrt(tf.maximum(sum_square, tf.keras.backend.epsilon()))
 
 
 class ContrastiveLoss(tf.keras.losses.Loss):
@@ -85,10 +85,10 @@ class ContrastiveLoss(tf.keras.losses.Loss):
         super(ContrastiveLoss, self).__init__()
         self.args = args
 
-    def triplet_loss(self, y_true, y_pred):
+    def call(self, y_true, y_pred):
         y_true = tf.cast(y_true, tf.float32)
         square_pred = tf.square(y_pred)
-        margin_square = tf.square(tf.maximum(self.margin - (y_pred), 0))
+        margin_square = tf.square(tf.maximum(self.args.margin - (y_pred), 0))
         return tf.reduce_mean(
             (1 - y_true) * square_pred + (y_true) * margin_square
         )
