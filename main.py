@@ -6,7 +6,7 @@ import numpy as np
 
 from utils import load_data, gen_target_user_to_target_trace_map
 from model import SiameseContrastiveLoss, SiameseTripletLoss, ContrastiveLoss, TripletLoss
-from sample import get_hard_triplet_batch, get_random_pair_batch, get_random_triplet_batch, get_test_pair_batch, get_test_triplet_batch, get_semi_hard_triplet_batch
+from sample import get_hard_triplet_batch, get_random_pair_batch, get_random_triplet_batch, get_test_pair_batch, get_test_triplet_batch, get_semi_hard_triplet_batch, get_semi_hard_pair_batch, get_hard_pair_batch
 
 def main():
 
@@ -81,7 +81,12 @@ def main():
                     else:
                         batch_x, batch_labels = get_random_triplet_batch(args, train_user_to_traces_map)
                 else:
-                    batch_x, batch_labels = get_random_pair_batch(args, train_user_to_traces_map)
+                    if args.sampling_strategy == "hard":
+                        batch_x, batch_labels = get_hard_pair_batch(args, train_user_to_traces_map, model)
+                    elif args.sampling_strategy == "semi_hard":
+                        batch_x, batch_labels = get_semi_hard_pair_batch(args, train_user_to_traces_map, model)
+                    else:
+                        batch_x, batch_labels = get_random_pair_batch(args, train_user_to_traces_map)
                 
                 loss = model.train_on_batch(batch_x, batch_labels)
                 total_loss += loss
