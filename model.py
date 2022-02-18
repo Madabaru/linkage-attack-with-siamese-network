@@ -48,35 +48,28 @@ class SiameseContrastiveLoss(tf.keras.Model):
     def __init__(self, args):
         super(SiameseContrastiveLoss, self).__init__()
         self.args = args
-        self.lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(args.max_trace_len, return_sequences = False))
+        self.lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(self.args.max_trace_len, return_sequences=False, dropout=self.args.dropout))
         self.d1 = tf.keras.layers.Dense(units=256)
-        self.d2 = tf.keras.layers.Dense(units=128)
-        self.d3 = tf.keras.layers.Dense(units=1, activation="sigmoid")
-        self.lamb = tf.keras.layers.Lambda(self.distance)
-        self.dropout = tf.keras.layers.Dropout(args.dropout)
-        self.norm = tf.keras.layers.BatchNormalization()
+        self.d2 = tf.keras.layers.Dense(units=256)
+        self.dist = tf.keras.layers.Lambda(self.distance)
+
 
     def call(self, x):
         x1, x2 = x
+
         x1 = self.lstm(x1)
-        x1 = self.dropout(x1)
         x1 = self.d1(x1)
-        x1 = self.d2(x1)
 
         x2 = self.lstm(x2)
-        x2 = self.dropout(x2)
-        x2 = self.d1(x2)
         x2 = self.d2(x2)
 
-        x = self.lamb([x1, x2])
-        x = self.norm(x)
-        x = self.d3(x)
+        x = self.dist([x1, x2])
         return x
     
     def distance(self, x):
         x1, x2 = x
         sum_square = tf.reduce_sum(tf.square(x1 - x2), axis=1, keepdims=True)
-        return tf.sqrt(tf.maximum(sum_square, tf.keras.backend.epsilon()))
+        return tf.math.exp(- sum_square)
 
 
 class ContrastiveLoss(tf.keras.losses.Loss):
