@@ -38,7 +38,6 @@ def get_hard_triplet_batch(args: dict, user_to_traces_map: dict, model: tf.keras
     """ Generates a hard triplet training batch. """
 
     batch_size = args.batch_size * 2
-
     hard_batch_size = int(batch_size / 2)
     
     random_batch, random_labels = get_random_triplet_batch(batch_size, user_to_traces_map)
@@ -75,14 +74,56 @@ def get_semi_hard_triplet_batch(args: dict, user_to_traces_map: dict, model: tf.
     return [random_anchor_batch[selection], random_positive_batch[selection], random_negative_batch[selection]], random_labels[selection]
 
 
-def get_random_pair_batch(args: dict, user_to_traces_map: dict):
+def get_hard_pair_batch(args: dict, user_to_traces_map: dict, model: tf.keras.Model):
+    """ Generates a hard pair training batch. """
+    
+    batch_size = args.batch_size * 2
+    hard_batch_size = int(batch_size / 2)
+
+    random_batch, random_labels = get_random_pair_batch(args, user_to_traces_map, batch_size)
+    random_batch_x1, random_batch_x2 = random_batch
+
+    output = model.predict(random_batch)
+    dist = np.squeeze(output)
+    selection = tf.argsort(dist, direction="DESCENDING")[:hard_batch_size] 
+
+    return [random_batch_x1[selection], random_batch_x2[selection]], random_labels[selection]
+
+
+def get_semi_hard_pair_batch(args: dict, user_to_traces_map: dict, model: tf.keras.Model):
+    """ Generates a semi-hard pair training batch. """
+    
+    batch_size = args.batch_size * 2
+
+    hard_batch_size = int(batch_size / 4)
+    norm_batch_size = int(batch_size / 4)
+    
+    random_batch, random_labels = get_random_pair_batch(args, user_to_traces_map, batch_size)
+    random_batch_x1, random_batch_x2 = random_batch
+
+    output = model.predict(random_batch)
+    dist = np.squeeze(output)
+    selection_hard = tf.argsort(dist, direction="DESCENDING")[:hard_batch_size] 
+
+    # Select other random samples
+    selection_norm = np.random.choice(np.delete(np.arange(batch_size),selection_hard), norm_batch_size,replace=False)
+    selection = np.append(selection_hard, selection_norm)
+
+    return [random_batch_x1[selection], random_batch_x2[selection]], random_labels[selection]
+
+
+
+def get_random_pair_batch(args: dict, user_to_traces_map: dict, batch_size=None):
     """ Generates a random pair training batch. """
 
     batch_x1 = []
     batch_x2 = []
     batch_labels = []
 
-    for i in range(int(args.batch_size / 2)):
+    if batch_size is None:
+        batch_size = args.batch_size
+
+    for i in range(int(batch_size / 2)):
         random_user = random.sample(user_to_traces_map.keys(), 1)[0]
         traces_list = user_to_traces_map[random_user]
         sampled_traces = random.sample(traces_list, 2)
@@ -92,7 +133,7 @@ def get_random_pair_batch(args: dict, user_to_traces_map: dict):
         batch_x2.append(trace_2)
         batch_labels.append(1)
     
-    for i in range(int(args.batch_size / 2)):
+    for i in range(int(batch_size / 2)):
         random_users = random.sample(user_to_traces_map.keys(), 2)
         traces_list_1 = user_to_traces_map[random_users[0]]
         traces_list_2 = user_to_traces_map[random_users[1]]
