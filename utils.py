@@ -42,7 +42,7 @@ def load_data(args: dict) -> dict:
                     event_array = np.array(list(event_str), dtype=int)
                     args.embedding_dim = event_array.shape[0]
                     trace_processed.append(event_array)
-                trace_processed = pad_trace(trace_processed)
+                trace_processed = pad_trace(args, trace_processed)
                 trace_list_processed.append(trace_processed)    
             client_to_trace_map_processed[client] = trace_list_processed
 
