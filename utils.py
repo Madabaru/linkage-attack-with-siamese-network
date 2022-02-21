@@ -13,6 +13,8 @@ def load_data(args: dict) -> dict:
        
         df = pd.read_csv(args.path, delimiter=",")
         
+        gender_encoder = ce.OneHotEncoder(cols="gender", return_df=False)
+        gender_encoded = gender_encoder.fit_transform(df["gender"])
         age_encoder = ce.OneHotEncoder(cols="age", return_df=False)
         age_encoded = age_encoder.fit_transform(df["age"])
         url_encoder = ce.BinaryEncoder(cols="url", return_df=False)
@@ -23,10 +25,9 @@ def load_data(args: dict) -> dict:
         domain_encoded = domain_encoder.fit_transform(df["domain"])
 
         user_id = df["user_id"].values
-        gender = df["gender"].values
         timestamp = df["timestamp"].values
 
-        data = np.column_stack((user_id, timestamp, gender, url_encoded, cat_encoded, domain_encoded, age_encoded))
+        data = np.column_stack((user_id, timestamp, gender_encoded, url_encoded, cat_encoded, domain_encoded, age_encoded))
         embedding_dim = data.shape[1]
         args.embedding_dim = embedding_dim - 2
 
