@@ -10,36 +10,7 @@ def load_data(args: dict) -> dict:
     """ Loads the data and transforms it. """
 
     if "browsing" in args.path:
-        
-<<<<<<< HEAD
-        client_to_trace_map_processed = {}
-
-
-        for client in list(client_to_trace_map.keys()):
-            trace_list = client_to_trace_map.get(client)
-            trace_list_processed = []
-            for trace in trace_list:
-                trace_processed = []
-                for url, domain, cat, hour in zip(trace["url"], trace["domain"], trace["category"], trace["hour"]):
-                    url_encoded = '{0:b}'.format(url)
-                    url_encoded = (max_num_urls - len(url_encoded)) * '0' + url_encoded 
-                    cat_encoded = '{0:b}'.format(cat)
-                    cat_encoded = (max_num_categories - len(cat_encoded)) * '0' + cat_encoded 
-                    domain_encoded = '{0:b}'.format(domain)
-                    domain_encoded = (max_num_domains - len(domain_encoded)) * '0' + domain_encoded 
-                    gender = gender_map.get(trace["gender"])
-                    age = age_map.get(trace["age"])
-                    event_str = gender + url_encoded + cat_encoded + domain_encoded + age
-                    event_array = np.array(list(event_str), dtype=int)
-                    args.embedding_dim = event_array.shape[0]
-                    trace_processed.append(event_array)
-                trace_processed = pad_trace(args, trace_processed)
-                trace_list_processed.append(trace_processed)    
-            client_to_trace_map_processed[client] = trace_list_processed
-
-        return client_to_trace_map_processed
-
-=======
+       
         df = pd.read_csv(args.path, delimiter=",")
         
         age_encoder = ce.OneHotEncoder(cols="age", return_df=False)
@@ -70,13 +41,13 @@ def load_data(args: dict) -> dict:
             if not int(data[i, 0]) in user_to_traces_map: 
                 user_to_traces_map[int(data[i, 0])] = []
                 if len(trace) >= args.min_trace_len:
-                    if data[i - 1, 1] - start_time < args.max_trace_duration:
+                    if data[i - 1, 1] - start_time <= args.max_trace_duration:
                         user_to_traces_map[int(data[i - 1, 0])].append(trace)
                 trace = []
                 start_time = data[i, 1]
 
-            if len(trace) >= args.max_trace_len or (prev_time != 0.0 and data[i, 1] - prev_time > args.max_delay):
-                if len(trace) >= args.min_trace_len and data[i - 1, 1] - start_time < args.max_trace_duration:
+            if len(trace) >= args.max_trace_len or (prev_time != 0.0 and data[i, 1] - prev_time >= args.max_delay):
+                if len(trace) >= args.min_trace_len and data[i - 1, 1] - start_time <= args.max_trace_duration:
                     trace = pad_trace(args, trace)
                     user_to_traces_map[int(data[i, 0])].append(trace)
                 trace = []
@@ -94,7 +65,6 @@ def load_data(args: dict) -> dict:
         logging.info("Total number of traces: %i", num_samples) 
         return filtered_user_to_traces_map
     
->>>>>>> parent of e7f98c2 (Major change)
     else:
 
         df = pd.read_csv(args.path, delimiter=",")
@@ -169,13 +139,13 @@ def load_data(args: dict) -> dict:
             if not int(data[i, 0]) in user_to_traces_map: 
                 user_to_traces_map[int(data[i, 0])] = []
                 if len(trace) >= args.min_trace_len:
-                    if data[i - 1, 1] - start_time < args.max_trace_duration:
+                    if data[i - 1, 1] - start_time <= args.max_trace_duration:
                         user_to_traces_map[int(data[i - 1, 0])].append(trace)
                 trace = []
                 start_time = data[i, 1]
 
-            if len(trace) >= args.max_trace_len or (prev_time != 0.0 and data[i, 1] - prev_time > args.max_delay):
-                if len(trace) >= args.min_trace_len and data[i - 1, 1] - start_time < args.max_trace_duration:
+            if len(trace) >= args.max_trace_len or (prev_time != 0.0 and data[i, 1] - prev_time >= args.max_delay):
+                if len(trace) >= args.min_trace_len and data[i - 1, 1] - start_time <= args.max_trace_duration:
                     trace = pad_trace(args, trace)
                     user_to_traces_map[int(data[i, 0])].append(trace)
                 trace = []
@@ -202,13 +172,13 @@ def pad_trace(args: dict, trace: list) -> list:
     return trace
 
 
-<<<<<<< HEAD
 def load_map(path: str) -> dict:
     """ Loads map. """
     with open(path, "rb") as file:
         map = pickle.load(file)
     return map
-=======
+
+
 def gen_target_user_to_target_trace_map(user_to_traces_map: dict, target_user_list: list) -> dict:
     """ Generates a map with target user as key and target traces as value. """
     target_user_to_target_trace_map = {}
@@ -217,4 +187,4 @@ def gen_target_user_to_target_trace_map(user_to_traces_map: dict, target_user_li
         split = int(len(traces_list) / 2)
         target_user_to_target_trace_map[target_user] = random.sample(traces_list[split:], 1)[0]
     return target_user_to_target_trace_map
->>>>>>> parent of e7f98c2 (Major change)
+
