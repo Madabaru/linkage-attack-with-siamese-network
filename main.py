@@ -4,7 +4,7 @@ import tensorflow as tf
 import logging
 import numpy as np
 
-from utils import load_data, load_map
+from utils import load_data, gen_target_user_to_target_trace_map
 from model import SiameseContrastiveLoss, SiameseTripletLoss, ContrastiveLoss, TripletLoss
 from sample import get_hard_triplet_batch, get_random_pair_batch, get_random_triplet_batch, get_test_pair_batch, get_test_triplet_batch, get_semi_hard_triplet_batch, get_semi_hard_pair_batch, get_hard_pair_batch
 
@@ -19,9 +19,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=50, help="Specifies the number of epochs to train.")
     parser.add_argument("--batch_size", type=int, default=128, help="Specifies the batch size to train the model.")
     parser.add_argument("--seed", type=int, default=0, help="Specifies the seed.")
-    parser.add_argument("--path", type=str, default="/home/john/data/browsing/client_to_trace_map.pkl", help="Specifies the absolute path to the dataset.")
-    parser.add_argument("--path_sample_map", type=str, default="/home/john/data/browsing/client_to_sample_idx_map.pkl", help="Specifies the absolute path to the sampling dataset.")
-    parser.add_argument("--path_target_map", type=str, default="/home/john/data/browsing/client_to_target_idx_map.pkl", help="Specifies the absolute path to the target dataset.")
+    parser.add_argument("--path", type=str, default="/home/john/data/mobility/driving_sampled_8k.csv", help="Specifies the absolute path to the dataset.")
     parser.add_argument("--gpu", type=str, default="/device:GPU:1", help="Specifies the gpu to train on. Default: /device:GPU:1")
     parser.add_argument("--dropout", type=float, default=0.4, help="Specifies the dropout ratio.")
     parser.add_argument("--sampling_strategy", type=str, default="semi_hard", choices=["random", "semi_hard", "hard"], help="Specifies the sampling strategy.")
@@ -46,13 +44,12 @@ def main():
         users = list(user_to_traces_map.keys())
         num_users = len(users)
 
-        user_to_sample_idx_map = load_map(args.path_sample_map)
-        train_num_samples = sum([len(v) for k, v in user_to_sample_idx_map.items()])
-        
-        user_to_target_idx_map = load_map(args.path_target_map)
-        args.sample_size = len(user_to_target_idx_map.keys())
-        target_user_list = list(user_to_target_idx_map.keys())
+        train_user_to_traces_map = {k: v[:int(len(v) / 2)] for k, v in user_to_traces_map.items()}
+        train_num_samples = sum([len(v) for k, v in train_user_to_traces_map.items()])
 
+        target_user_list = random.sample(users, args.sample_size)   
+        target_user_to_target_trace_map = gen_target_user_to_target_trace_map(user_to_traces_map, target_user_list)
+        
         logging.info("Building network...")
         if args.approach == "tl":
             model = SiameseTripletLoss(args)
@@ -66,6 +63,11 @@ def main():
         steps_per_epoch = train_num_samples // args.batch_size
 
         current_top_1 = 0.0
+        current_top_1_std = 0.0
+        current_top_10 = 0.0
+        current_top_10_std = 0.0
+        current_top_10_percent = 0.0
+        current_top_1_percent_std = 0.0
 
         logging.info("Beginning to train the network...")
         for epoch in range(args.epochs):
@@ -73,18 +75,18 @@ def main():
             for step in range(steps_per_epoch):
                 if args.approach == "tl":
                     if args.sampling_strategy == "hard":
-                        batch_x, batch_labels = get_hard_triplet_batch(args, user_to_traces_map, user_to_sample_idx_map, model)
+                        batch_x, batch_labels = get_hard_triplet_batch(args, train_user_to_traces_map, model)
                     elif args.sampling_strategy == "semi_hard":
-                        batch_x, batch_labels = get_semi_hard_triplet_batch(args, user_to_traces_map, user_to_sample_idx_map, model)
+                        batch_x, batch_labels = get_semi_hard_triplet_batch(args, train_user_to_traces_map, model)
                     else:
-                        batch_x, batch_labels = get_random_triplet_batch(args, user_to_traces_map, user_to_sample_idx_map)
+                        batch_x, batch_labels = get_random_triplet_batch(args, train_user_to_traces_map)
                 else:
                     if args.sampling_strategy == "hard":
-                        batch_x, batch_labels = get_hard_pair_batch(args, user_to_traces_map, user_to_sample_idx_map, model)
+                        batch_x, batch_labels = get_hard_pair_batch(args, train_user_to_traces_map, model)
                     elif args.sampling_strategy == "semi_hard":
-                        batch_x, batch_labels = get_semi_hard_pair_batch(args, user_to_traces_map, user_to_sample_idx_map, model)
+                        batch_x, batch_labels = get_semi_hard_pair_batch(args, train_user_to_traces_map, model)
                     else:
-                        batch_x, batch_labels = get_random_pair_batch(args, user_to_traces_map, user_to_sample_idx_map)
+                        batch_x, batch_labels = get_random_pair_batch(args, train_user_to_traces_map)
                 
                 loss = model.train_on_batch(batch_x, batch_labels)
                 total_loss += loss
@@ -96,13 +98,12 @@ def main():
                 preds = []
                 for i in range(args.sample_size):
                     target_user = target_user_list[i]
-                    target_trace_idx = user_to_target_idx_map[target_user]
-                    target_trace = user_to_traces_map.get(target_user)[target_trace_idx]
+                    target_trace = target_user_to_target_trace_map[target_user]
                     for p in range(0, num_users, args.batch_size):
                         if args.approach == "tl":
-                            batch_x, _ = get_test_triplet_batch(args, user_to_traces_map, user_to_sample_idx_map, target_trace, target_user, p)
+                            batch_x, _ = get_test_triplet_batch(args, user_to_traces_map, target_trace, target_user, p)
                             batch_preds = model.predict_on_batch(batch_x)
-                            batch_preds_anchor, batch_preds_positive, _ = batch_preds[:,:args.latent_size], batch_preds[:,args.latent_size:2*args.latent_size], batch_preds[:,2*args.latent_size:]
+                            batch_preds_anchor, batch_preds_positive, batch_preds_negative = batch_preds[:,:args.latent_size], batch_preds[:,args.latent_size:2*args.latent_size], batch_preds[:,2*args.latent_size:]
                             batch_preds_dist = tf.reduce_mean(tf.square(batch_preds_anchor - batch_preds_positive), axis=1)
                             preds.append(np.squeeze(batch_preds_dist))  
                         else:
