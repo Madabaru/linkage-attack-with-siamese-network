@@ -69,7 +69,8 @@ class SiameseContrastiveLoss(tf.keras.Model):
     def distance(self, x):
         x1, x2 = x
         sum_square = tf.reduce_sum(tf.square(x1 - x2), axis=1, keepdims=True)
-        return tf.math.exp(- sum_square)
+        return tf.sqrt(tf.maximum(sum_square, tf.keras.backend.epsilon()))
+        # return tf.math.exp(- sum_square)
 
 
 class ContrastiveLoss(tf.keras.losses.Loss):
