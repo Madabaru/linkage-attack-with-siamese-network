@@ -1,58 +1,73 @@
 import tensorflow as tf
 
+
 class SiameseTripletLoss(tf.keras.Model):
-  def __init__(self, args: dict):
-    super(SiameseTripletLoss, self).__init__()
-    self.args = args
-    self.lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(self.args.max_trace_len, return_sequences = False))
-    self.d1 = tf.keras.layers.Dense(units=256) 
-    self.d2 = tf.keras.layers.Dense(units=128)
-    self.dropout = tf.keras.layers.Dropout(self.args.dropout)
-    
-  def call(self, x):
-    input_anchor, input_positive, input_negative = x
-    
-    embedding_anchor = self.lstm(input_anchor)
-    embedding_anchor = self.dropout(embedding_anchor)
-    embedding_anchor = self.d1(embedding_anchor)
-    embedding_anchor = self.d2(embedding_anchor)
+    """
+    Siamese neural network trained with triplet loss, implemented with Tensorflow.
+    """
 
-    embedding_positive = self.lstm(input_positive)
-    embedding_positive = self.dropout(embedding_positive)
-    embedding_positive = self.d1(embedding_positive)
-    embedding_positive = self.d2(embedding_positive)
+    def __init__(self, args: dict):
+        super(SiameseTripletLoss, self).__init__()
+        self.args = args
+        self.lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(
+            self.args.max_trace_len, return_sequences=False))
+        self.d1 = tf.keras.layers.Dense(units=256)
+        self.d2 = tf.keras.layers.Dense(units=128)
+        self.dropout = tf.keras.layers.Dropout(self.args.dropout)
 
-    embedding_negative = self.lstm(input_negative)
-    embedding_negative = self.dropout(embedding_negative)
-    embedding_negative = self.d1(embedding_negative)
-    embedding_negative = self.d2(embedding_negative)
+    def call(self, x):
+        x_anchor, x_pos, x_neg = x
 
-    output = tf.keras.layers.concatenate([embedding_anchor, embedding_positive, embedding_negative], axis=1)
-    return output
+        emb_anchor = self.lstm(x_anchor)
+        emb_anchor = self.dropout(emb_anchor)
+        emb_anchor = self.d1(emb_anchor)
+        emb_anchor = self.d2(emb_anchor)
+
+        emb_pos = self.lstm(x_pos)
+        emb_pos = self.dropout(emb_pos)
+        emb_pos = self.d1(emb_pos)
+        emb_pos = self.d2(emb_pos)
+
+        emb_neg = self.lstm(x_neg)
+        emb_neg = self.dropout(emb_neg)
+        emb_neg = self.d1(emb_neg)
+        emb_neg = self.d2(emb_neg)
+
+        output = tf.keras.layers.concatenate(
+            [emb_anchor, emb_pos, emb_neg], axis=1)
+        return output
 
 
 class TripletLoss(tf.keras.losses.Loss):
+    """
+    Triplet loss implementation.
+    """
 
     def __init__(self, args):
         super(TripletLoss, self).__init__()
         self.args = args
 
-    def call(self, y_true, y_pred):
-        anchor, positive, negative = y_pred[:, :self.args.latent_size], y_pred[:, self.args.latent_size:2*self.args.latent_size], y_pred[:, 2*self.args.latent_size:]
-        positive_dist = tf.reduce_mean(tf.square(anchor - positive), axis=1)
-        negative_dist = tf.reduce_mean(tf.square(anchor - negative), axis=1)
-        return tf.maximum(positive_dist - negative_dist + self.args.margin, 0.0)
+    def call(self, _, y_pred):
+        anchor, pos, neg = y_pred[:, :self.args.latent_size], y_pred[:,
+                                                                     self.args.latent_size:2*self.args.latent_size], y_pred[:, 2*self.args.latent_size:]
+        pos_dist = tf.reduce_mean(tf.square(anchor - pos), axis=1)
+        neg_dist = tf.reduce_mean(tf.square(anchor - neg), axis=1)
+        return tf.maximum(pos_dist - neg_dist + self.args.margin, 0.0)
 
 
 class SiameseContrastiveLoss(tf.keras.Model):
+    """
+    Siamese neural network trained with contrastive loss, implemented with Tensorflow.
+    """
+
     def __init__(self, args):
         super(SiameseContrastiveLoss, self).__init__()
         self.args = args
-        self.lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(self.args.max_trace_len, return_sequences=False, dropout=self.args.dropout))
+        self.lstm = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(
+            self.args.max_trace_len, return_sequences=False, dropout=self.args.dropout))
         self.d1 = tf.keras.layers.Dense(units=256)
         self.d2 = tf.keras.layers.Dense(units=256)
         self.dist = tf.keras.layers.Lambda(self.distance)
-
 
     def call(self, x):
         x1, x2 = x
@@ -65,15 +80,17 @@ class SiameseContrastiveLoss(tf.keras.Model):
 
         x = self.dist([x1, x2])
         return x
-    
+
     def distance(self, x):
         x1, x2 = x
         sum_square = tf.reduce_sum(tf.square(x1 - x2), axis=1, keepdims=True)
         return tf.sqrt(tf.maximum(sum_square, tf.keras.backend.epsilon()))
-        # return tf.math.exp(- sum_square)
 
 
 class ContrastiveLoss(tf.keras.losses.Loss):
+    """
+    Contrastive loss implementation.
+    """
 
     def __init__(self, args):
         super(ContrastiveLoss, self).__init__()
@@ -86,6 +103,3 @@ class ContrastiveLoss(tf.keras.losses.Loss):
         return tf.reduce_mean(
             (1 - y_true) * square_pred + (y_true) * margin_square
         )
-
-
-
